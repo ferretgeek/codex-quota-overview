@@ -63,7 +63,7 @@ if not exist "%SERVER_EXE%" (
 )
 
 echo [STEP 3/4] Starting the backend service.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath '%SERVER_EXE%' -ArgumentList '-open-browser=false' -WorkingDirectory '%BACKEND_DIR%' -WindowStyle Hidden -RedirectStandardOutput '%LOG_DIR%\server.out.log' -RedirectStandardError '%LOG_DIR%\server.err.log' -PassThru; Set-Content -Path '%PID_FILE%' -Value $p.Id -Encoding ascii"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath '%SERVER_EXE%' -ArgumentList '-open-browser=false' -WorkingDirectory '%APP_ROOT%' -WindowStyle Hidden -RedirectStandardOutput '%LOG_DIR%\server.out.log' -RedirectStandardError '%LOG_DIR%\server.err.log' -PassThru; Set-Content -Path '%PID_FILE%' -Value $p.Id -Encoding ascii"
 if errorlevel 1 (
   echo [ERROR] Failed to start the backend process.
   goto :error

@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("resolve working directory failed: %v", err)
 	}
-	appDir := filepath.Dir(workingDir)
+	appDir := resolveAppDir(workingDir)
 	workspaceRoot := filepath.Dir(appDir)
 	staticDir := filepath.Join(appDir, "web", "dist")
 
@@ -64,4 +64,25 @@ func main() {
 	if err = httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server exited: %v", err)
 	}
+}
+
+func resolveAppDir(workingDir string) string {
+	candidates := []string{workingDir, filepath.Dir(workingDir)}
+	if executable, err := os.Executable(); err == nil {
+		executableDir := filepath.Dir(executable)
+		candidates = append(candidates, filepath.Dir(executableDir), executableDir)
+	}
+
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		candidate = filepath.Clean(candidate)
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		if info, err := os.Stat(filepath.Join(candidate, "web")); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return filepath.Dir(workingDir)
 }
