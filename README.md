@@ -1,8 +1,14 @@
-# Codex 普号额度概览
+# Codex 额度总览
 
 [English](./README_EN.md)
 
+[![CI](https://github.com/ferretgeek/codex-quota-overview/actions/workflows/ci.yml/badge.svg)](https://github.com/ferretgeek/codex-quota-overview/actions/workflows/ci.yml)
+[![最新版本](https://img.shields.io/github/v/release/ferretgeek/codex-quota-overview?display_name=tag)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
+[![开源许可](https://img.shields.io/github/license/ferretgeek/codex-quota-overview)](LICENSE)
+
 一个面向 Windows 的本地额度扫描面板，用来批量导入认证 `JSON` 文件、实时查询 Codex 额度，并以可视化方式展示总额度、当前剩余额度、亏损额度、账户列表和窗口详情。
+
+> **只想直接使用？** [前往 Releases 下载最新版 Windows 免安装包](https://github.com/ferretgeek/codex-quota-overview/releases/latest)，解压后按压缩包内说明启动，无需自行配置开发环境。
 
 ## 项目亮点
 
@@ -115,3 +121,4 @@ npm run build
 - 本仓库不包含任何真实凭证、号池、扫描结果和运行日志
 - 请不要将真实账号文件、导入目录、结果目录直接提交到仓库
 - 运行版建议通过 GitHub Releases 发布
+- 提交问题前请阅读 [支持说明](./SUPPORT.md)，参与开发请阅读 [贡献指南](./CONTRIBUTING.md)

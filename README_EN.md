@@ -2,7 +2,13 @@
 
 [简体中文](./README.md)
 
+[![CI](https://github.com/ferretgeek/codex-quota-overview/actions/workflows/ci.yml/badge.svg)](https://github.com/ferretgeek/codex-quota-overview/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/ferretgeek/codex-quota-overview?display_name=tag)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
+[![License](https://img.shields.io/github/license/ferretgeek/codex-quota-overview)](LICENSE)
+
 A local Windows quota dashboard for bulk-importing auth `JSON` files, querying live Codex quota, and visualizing total quota, remaining quota, loss, account lists, and window-level details.
+
+> **Want to use it right away?** [Download the latest portable Windows build from Releases](https://github.com/ferretgeek/codex-quota-overview/releases/latest). Unzip it and follow the included instructions; no development toolchain is required.
 
 ## Highlights
 
@@ -115,3 +121,4 @@ npm run build
 - This repository does not include any real credentials, imported pools, scan results, or runtime logs
 - Do not commit real auth files or runtime output directories
 - Packaged runtime builds should be published through GitHub Releases
+- Read [Support](./SUPPORT.md) before opening an issue and [Contributing](./CONTRIBUTING.md) before submitting a change

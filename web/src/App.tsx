@@ -335,7 +335,7 @@ function App() {
   }, []);
 
   const handleExport = useCallback(() => {
-	const directory = resolveDirectoryCandidate(meta, settings.directory);
+    const directory = resolveDirectoryCandidate(meta, settings.directory);
     if (!directory) return;
     const url = api.exportCsvUrl({
       directory,
@@ -345,7 +345,7 @@ function App() {
       force: false,
     });
     window.open(url, '_blank');
-  }, [meta?.defaultDirectory, settings.autoConcurrency, settings.directory, settings.fullValueUSD, settings.manualConcurrency]);
+  }, [meta, settings.autoConcurrency, settings.directory, settings.fullValueUSD, settings.manualConcurrency]);
 
   const selectedDirectoryInfo = useMemo<DirectoryInfo | null>(() => {
     return meta?.directories.find((item) => item.name === settings.directory) ?? null;
@@ -470,12 +470,8 @@ function App() {
           <AccountList
             resultId={snapshot?.resultId}
             loading={loading}
-            autoRefreshEnabled={settings.autoRefreshEnabled}
-            autoRefreshMinutes={settings.autoRefreshMinutes}
             pageSize={settings.pageSize}
             onPageSizeChange={(pageSize) => handleSettingsChange({ pageSize })}
-            onAutoRefreshChange={(enabled) => handleSettingsChange({ autoRefreshEnabled: enabled })}
-            onAutoRefreshMinutesChange={(minutes) => handleSettingsChange({ autoRefreshMinutes: minutes })}
             onRefreshAll={() => runJob(false)}
             onRefreshSelected={(ids) => runJob(true, ids)}
           />

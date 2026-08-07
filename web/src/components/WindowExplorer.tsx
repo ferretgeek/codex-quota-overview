@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { AccountRecord } from '../types';
 import { useAccountsPage } from '../hooks/useAccountsPage';
 
@@ -11,11 +11,9 @@ interface WindowExplorerProps {
 
 export default function WindowExplorer({ resultId, loading, pageSize, onPageSizeChange }: WindowExplorerProps) {
   const [showOnlyFailures, setShowOnlyFailures] = useState(false);
-  const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    setPage(1);
-  }, [pageSize, resultId, showOnlyFailures]);
+  const queryKey = [resultId ?? '', pageSize, showOnlyFailures].join('\u0000');
+  const [pageState, setPageState] = useState({ key: queryKey, page: 1 });
+  const page = pageState.key === queryKey ? pageState.page : 1;
 
   const { data, loading: pageLoading, error } = useAccountsPage({
     resultId,
@@ -95,9 +93,9 @@ export default function WindowExplorer({ resultId, loading, pageSize, onPageSize
           当前显示 <b style={{ color: 'var(--text-primary)' }}>{visibleRangeStart}-{visibleRangeEnd}</b> 行，共计 {total.toLocaleString('zh-CN')} 个详情实体
         </div>
         <div className="pagination" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage <= 1 || pageLoading} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>上一页</button>
+          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage <= 1 || pageLoading} onClick={() => setPageState({ key: queryKey, page: Math.max(1, currentPage - 1) })}>上一页</button>
           <div className="text-micro text-subtle">第 {currentPage} / {totalPages} 页</div>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage >= totalPages || pageLoading} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}>下一页</button>
+          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage >= totalPages || pageLoading} onClick={() => setPageState({ key: queryKey, page: Math.min(totalPages, currentPage + 1) })}>下一页</button>
         </div>
       </div>
     </div>

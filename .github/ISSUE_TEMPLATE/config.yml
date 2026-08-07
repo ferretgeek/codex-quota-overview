@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用说明
+    url: https://github.com/ferretgeek/codex-quota-overview/blob/main/SUPPORT.md
+    about: 创建 Issue 前请先查看常见支持流程
+  - name: 项目讨论
+    url: https://github.com/ferretgeek/codex-quota-overview/discussions
+    about: 一般想法、经验分享与非故障问题

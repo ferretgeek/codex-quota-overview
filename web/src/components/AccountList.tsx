@@ -18,12 +18,8 @@ const rowVariants: Variants = {
 interface AccountListProps {
   resultId?: string;
   loading: boolean;
-  autoRefreshEnabled: boolean;
-  autoRefreshMinutes: number;
   pageSize: number;
   onPageSizeChange: (pageSize: number) => void;
-  onAutoRefreshChange: (enabled: boolean) => void;
-  onAutoRefreshMinutesChange: (minutes: number) => void;
   onRefreshAll: () => Promise<void> | void;
   onRefreshSelected: (ids: string[]) => Promise<void> | void;
 }
@@ -49,34 +45,29 @@ type SortKey = (typeof SORT_OPTIONS)[number]['value'];
 export default function AccountList({
   resultId,
   loading,
-  autoRefreshEnabled: _autoRefreshEnabled,
-  autoRefreshMinutes: _autoRefreshMinutes,
   pageSize,
   onPageSizeChange,
-  onAutoRefreshChange: _onAutoRefreshChange,
-  onAutoRefreshMinutesChange: _onAutoRefreshMinutesChange,
   onRefreshAll,
   onRefreshSelected,
 }: AccountListProps) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [sortKey, setSortKey] = useState<SortKey>('quotaAsc');
-  const [page, setPage] = useState(1);
+  const queryKey = [resultId ?? '', debouncedSearch, pageSize, sortKey, statusFilter].join('\u0000');
+  const [pageState, setPageState] = useState({ key: queryKey, page: 1 });
+  const page = pageState.key === queryKey ? pageState.page : 1;
+  const selectionKey = `${queryKey}\u0000${page}`;
+  const [selection, setSelection] = useState<{ key: string; ids: Set<string> }>({
+    key: selectionKey,
+    ids: new Set(),
+  });
+  const selectedIds = selection.key === selectionKey ? selection.ids : new Set<string>();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [search]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, pageSize, resultId, sortKey, statusFilter]);
-
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [page, debouncedSearch, pageSize, resultId, sortKey, statusFilter]);
 
   const { data, loading: pageLoading, error } = useAccountsPage({
     resultId,
@@ -104,25 +95,25 @@ export default function AccountList({
 
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
-      setSelectedIds(new Set());
+      setSelection({ key: selectionKey, ids: new Set() });
       return;
     }
-    setSelectedIds(new Set(items.map((account) => account.id)));
+    setSelection({ key: selectionKey, ids: new Set(items.map((account) => account.id)) });
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
+    setSelection((prev) => {
+      const next = prev.key === selectionKey ? new Set(prev.ids) : new Set<string>();
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
+      return { key: selectionKey, ids: next };
     });
   };
 
   const handleRefreshSelected = async () => {
     if (selectedIds.size === 0 || loading) return;
     await onRefreshSelected([...selectedIds]);
-    setSelectedIds(new Set());
+    setSelection({ key: selectionKey, ids: new Set() });
   };
 
   return (
@@ -241,9 +232,9 @@ export default function AccountList({
           <select id="account-page-size" name="accountPageSize" className="btn btn-secondary" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value) || 20)}>
             {[20, 50, 100, 200].map((size) => <option key={size} value={size}>{size}/页</option>)}
           </select>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage <= 1 || pageLoading} onClick={() => setPage((prev) => Math.max(1, prev - 1))}>上一页</button>
+          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage <= 1 || pageLoading} onClick={() => setPageState({ key: queryKey, page: Math.max(1, currentPage - 1) })}>上一页</button>
           <div className="text-micro text-subtle">第 {currentPage} / {totalPages} 页</div>
-          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage >= totalPages || pageLoading} onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}>下一页</button>
+          <button className="btn btn-secondary" style={{ padding: '6px 12px' }} disabled={currentPage >= totalPages || pageLoading} onClick={() => setPageState({ key: queryKey, page: Math.min(totalPages, currentPage + 1) })}>下一页</button>
         </div>
       </div>
     </motion.div>
