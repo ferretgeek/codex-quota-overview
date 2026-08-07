@@ -27,8 +27,8 @@ export default function Sidebar({ activeView, onChangeView }: SidebarProps) {
           <Gauge size={16} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '4px' }}>
-          <span style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '-0.02em', lineHeight: '1.2' }}>Codex普号</span>
-          <span style={{ fontWeight: 600, fontSize: '13px', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>额度概览</span>
+          <span style={{ fontWeight: 700, fontSize: '18px', letterSpacing: '-0.02em', lineHeight: '1.2' }}>Codex</span>
+          <span style={{ fontWeight: 600, fontSize: '13px', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>额度总览</span>
         </div>
       </div>
 

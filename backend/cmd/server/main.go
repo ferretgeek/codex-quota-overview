@@ -35,7 +35,7 @@ func main() {
 		WorkspaceRoot: strings.TrimSpace(*workspaceFlag),
 		StaticDir:     strings.TrimSpace(*staticFlag),
 		CacheTTL:      *cacheTTLFlag,
-		AppName:       "Codex普号额度概览",
+		AppName:       "Codex 额度总览",
 		DefaultPrice:  7.5,
 	})
 

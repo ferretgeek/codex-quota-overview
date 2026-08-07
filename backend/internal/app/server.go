@@ -1014,7 +1014,7 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) writeStaticFallback(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><title>Codex普号额度概览</title></head><body style="font-family:sans-serif;padding:32px"><h1>Codex普号额度概览</h1><p>前端构建产物不存在，请先在 <code>web</code> 目录执行 <code>npm install</code> 与 <code>npm run build</code>，再重新启动服务。</p></body></html>`))
+	_, _ = w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><title>Codex 额度总览</title></head><body style="font-family:sans-serif;padding:32px"><h1>Codex 额度总览</h1><p>前端构建产物不存在，请先在 <code>web</code> 目录执行 <code>npm install</code> 与 <code>npm run build</code>，再重新启动服务。</p></body></html>`))
 }
 
 func (s *Server) decodeRequest(r *http.Request) (ScanRequest, error) {
@@ -1254,6 +1254,7 @@ func (s *Server) collectWorkspaceDirectories() []DirectoryInfo {
 	}
 	ignored := map[string]struct{}{
 		"Codex普号额度概览":  {},
+		"Codex 额度总览":   {},
 		"codex-额度查询前端": {},
 		"CLIProxyAPI":  {},
 	}
