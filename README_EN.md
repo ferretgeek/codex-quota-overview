@@ -6,6 +6,8 @@
 [![Latest Release](https://img.shields.io/github/v/release/ferretgeek/codex-quota-overview?display_name=tag)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
 [![License](https://img.shields.io/github/license/ferretgeek/codex-quota-overview)](LICENSE)
 
+[![Codex Quota Overview product preview](./docs/images/social-preview.png)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
+
 A local Windows quota dashboard for bulk-importing auth `JSON` files, querying live Codex quota, and visualizing total quota, remaining quota, loss, account lists, and window-level details.
 
 > **Want to use it right away?** [Download the latest portable Windows build from Releases](https://github.com/ferretgeek/codex-quota-overview/releases/latest). Unzip it and follow the included instructions; no development toolchain is required.

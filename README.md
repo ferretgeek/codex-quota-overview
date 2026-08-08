@@ -6,6 +6,8 @@
 [![最新版本](https://img.shields.io/github/v/release/ferretgeek/codex-quota-overview?display_name=tag)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
 [![开源许可](https://img.shields.io/github/license/ferretgeek/codex-quota-overview)](LICENSE)
 
+[![Codex 额度总览产品预览](./docs/images/social-preview.png)](https://github.com/ferretgeek/codex-quota-overview/releases/latest)
+
 一个面向 Windows 的本地额度扫描面板，用来批量导入认证 `JSON` 文件、实时查询 Codex 额度，并以可视化方式展示总额度、当前剩余额度、亏损额度、账户列表和窗口详情。
 
 > **只想直接使用？** [前往 Releases 下载最新版 Windows 免安装包](https://github.com/ferretgeek/codex-quota-overview/releases/latest)，解压后按压缩包内说明启动，无需自行配置开发环境。
