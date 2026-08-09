@@ -46,8 +46,8 @@
 }
 
 [data-theme='dark'] {
-  --bg-main: #0B0F19;
-  --bg-app: #0F172A;
+  --bg-main: #17191D;
+  --bg-app: #1D2025;
   --bg-card: rgba(30, 41, 59, 0.5);
   --bg-hover: rgba(51, 65, 85, 0.4);
 
