@@ -1,4 +1,4 @@
-# Codex 额度总览
+# Codex Quota Overview — 多账户 Codex 额度总览
 
 [English](./README_EN.md)
 

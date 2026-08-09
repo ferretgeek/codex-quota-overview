@@ -1,4 +1,4 @@
-# Codex Quota Overview
+# Codex Quota Overview — Multi-account Codex Quota Dashboard
 
 [简体中文](./README.md)
 
