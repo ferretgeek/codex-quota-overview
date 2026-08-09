@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -32,6 +34,9 @@ const (
 	resultsDirName           = "results"
 	previewAccountLimit      = 6
 	maxAccountsPageSize      = 500
+	maxImportRequestBytes    = 128 << 20
+	maxCredentialFileBytes   = 4 << 20
+	maxJSONRequestBytes      = 1 << 20
 )
 
 var resultIDPattern = regexp.MustCompile(`^result-[0-9]{1,24}-[a-f0-9]{8}$`)
@@ -77,7 +82,7 @@ func NewServer(config ServerConfig) *Server {
 }
 
 func (s *Server) Config() ServerConfig  { return s.config }
-func (s *Server) Handler() http.Handler { return s.cors(s.gzip(s.mux)) }
+func (s *Server) Handler() http.Handler { return s.securityHeaders(s.gzip(s.mux)) }
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/health", s.handleHealth)
@@ -524,10 +529,15 @@ func (s *Server) handleMeta(w http.ResponseWriter, r *http.Request) {
 	if len(directories) > 0 {
 		defaultDir = directories[0].Name
 	}
+	publicDirectories := make([]DirectoryInfo, len(directories))
+	copy(publicDirectories, directories)
+	for index := range publicDirectories {
+		publicDirectories[index].Path = DisplayPath(publicDirectories[index].Path)
+	}
 	s.writeJSON(w, http.StatusOK, MetaResponse{
 		AppName:          s.config.AppName,
-		WorkspaceRoot:    s.config.WorkspaceRoot,
-		Directories:      directories,
+		WorkspaceRoot:    DisplayPath(s.config.WorkspaceRoot),
+		Directories:      publicDirectories,
 		DefaultDirectory: defaultDir,
 		System: SystemInfo{
 			LogicalCPU:             runtime.NumCPU(),
@@ -607,9 +617,13 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
-	if err := r.ParseMultipartForm(256 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportRequestBytes)
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("parse multipart failed: %v", err))
 		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
 	}
 	folderName := sanitizeFolderName(r.FormValue("folderName"))
 	appendMode := strings.EqualFold(strings.TrimSpace(r.FormValue("append")), "true") || strings.TrimSpace(r.FormValue("append")) == "1"
@@ -657,6 +671,10 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 	count := 0
 	failed := 0
 	for index, fileHeader := range files {
+		if fileHeader.Size < 0 || fileHeader.Size > maxCredentialFileBytes {
+			failed++
+			continue
+		}
 		relPath := fileHeader.Filename
 		if index < len(paths) && strings.TrimSpace(paths[index]) != "" {
 			relPath = paths[index]
@@ -681,9 +699,9 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 			failed++
 			continue
 		}
-		data, err := io.ReadAll(src)
+		data, err := io.ReadAll(io.LimitReader(src, maxCredentialFileBytes+1))
 		_ = src.Close()
-		if err != nil {
+		if err != nil || len(data) > maxCredentialFileBytes {
 			failed++
 			continue
 		}
@@ -711,7 +729,7 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonCount := existingCount + count
 	s.setImportedDirectoryCount(targetDir, jsonCount)
-	info := DirectoryInfo{Name: folderName, Path: targetDir, JSONCount: jsonCount, Imported: true}
+	info := DirectoryInfo{Name: folderName, Path: DisplayPath(targetDir), JSONCount: jsonCount, Imported: true}
 	s.writeJSON(w, http.StatusOK, ImportFolderResponse{Imported: info})
 }
 
@@ -720,6 +738,7 @@ func (s *Server) handleDeleteDirectory(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
 	var req DeleteDirectoryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid request body: %v", err))
@@ -768,6 +787,7 @@ func (s *Server) handleScanJob(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
 	req, err := s.decodeRequest(r)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
@@ -786,6 +806,7 @@ func (s *Server) handleRefreshJob(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
 	req, err := s.decodeRequest(r)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
@@ -880,6 +901,7 @@ func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
 	req, err := s.decodeRequest(r)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
@@ -980,6 +1002,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		s.writeMethodNotAllowed(w)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONRequestBytes)
 	req, err := s.decodeRequest(r)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
@@ -1448,11 +1471,45 @@ func flattenImportedFileName(path string) string {
 	return flattened
 }
 
-func (s *Server) cors(next http.Handler) http.Handler {
+func loopbackHost(host string) bool {
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func requestOriginAllowed(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Hostname() == "" {
+		return false
+	}
+	requestHost := r.Host
+	if host, _, splitErr := net.SplitHostPort(r.Host); splitErr == nil {
+		requestHost = host
+	}
+	return strings.EqualFold(parsed.Hostname(), strings.Trim(requestHost, "[]")) ||
+		(loopbackHost(parsed.Hostname()) && loopbackHost(requestHost))
+}
+
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		if !requestOriginAllowed(r) {
+			s.writeError(w, http.StatusForbidden, "cross-origin requests are not allowed")
+			return
+		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

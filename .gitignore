@@ -3,6 +3,7 @@ bin/
 imports/
 logs/
 results/
+workspace/
 .backend.pid
 
 # Frontend build / dependencies
@@ -18,4 +19,3 @@ Thumbs.db
 # Release artifacts
 *.zip
 *.7z
-

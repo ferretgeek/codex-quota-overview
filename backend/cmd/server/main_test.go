@@ -28,3 +28,16 @@ func TestResolveAppDirFromBackendDirectory(t *testing.T) {
 		t.Fatalf("resolveAppDir(%q) = %q, want %q", backend, got, root)
 	}
 }
+
+func TestLoopbackListenAddress(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:8787", "127.1.2.3:8787", "localhost:8787", "[::1]:8787"} {
+		if !isLoopbackListenAddress(address) {
+			t.Fatalf("expected %q to be accepted", address)
+		}
+	}
+	for _, address := range []string{"0.0.0.0:8787", ":8787", "192.0.2.10:8787", "example.com:8787", "bad"} {
+		if isLoopbackListenAddress(address) {
+			t.Fatalf("expected %q to be rejected", address)
+		}
+	}
+}

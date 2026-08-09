@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckSquare, Filter, MoreVertical, RefreshCw, Search, Square as SquareIcon } from 'lucide-react';
+import { CheckSquare, Filter, RefreshCw, Search, Square as SquareIcon } from 'lucide-react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import './AccountList.css';
 import type { AccountStatus } from '../types';
@@ -155,9 +155,9 @@ export default function AccountList({
           <thead>
             <tr>
               <th style={{ width: '56px', paddingLeft: '24px' }}>
-                <div className="checkbox-wrapper" onClick={toggleSelectAll}>
+                <button type="button" className="checkbox-wrapper" onClick={toggleSelectAll} aria-label={allVisibleSelected ? '取消选择本页全部账户' : '选择本页全部账户'}>
                   {allVisibleSelected ? <CheckSquare size={18} className="icon-active" /> : <SquareIcon size={18} />}
-                </div>
+                </button>
               </th>
               <th>账户</th>
               <th>套餐</th>
@@ -166,23 +166,22 @@ export default function AccountList({
               <th>重置时间</th>
               <th>状态</th>
               <th>备注</th>
-              <th style={{ width: '64px', paddingRight: '24px' }}>操作</th>
             </tr>
           </thead>
           <motion.tbody variants={listVariants} initial="hidden" animate="show">
             <AnimatePresence mode="popLayout">
               {items.length === 0 ? (
                 <motion.tr key="empty" variants={rowVariants} className="table-row">
-                  <td colSpan={9} style={{ padding: '28px 24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <td colSpan={8} style={{ padding: '28px 24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     {!resultId ? '暂无扫描结果。' : pageLoading ? '正在加载这一页的数据...' : error ? '账户分页加载失败。' : '这一页没有匹配结果。'}
                   </td>
                 </motion.tr>
               ) : items.map((account) => (
                 <motion.tr key={account.id} variants={rowVariants} layout className={`table-row ${selectedIds.has(account.id) ? 'selected' : ''}`}>
                   <td style={{ paddingLeft: '24px' }}>
-                    <div className="checkbox-wrapper" onClick={() => toggleSelect(account.id)}>
+                    <button type="button" className="checkbox-wrapper" onClick={() => toggleSelect(account.id)} aria-label={selectedIds.has(account.id) ? `取消选择 ${account.email || account.file}` : `选择 ${account.email || account.file}`}>
                       {selectedIds.has(account.id) ? <CheckSquare size={18} className="icon-active" /> : <SquareIcon size={18} />}
-                    </div>
+                    </button>
                   </td>
                   <td>
                     <div className="account-email text-body">{account.email || account.file}</div>
@@ -211,11 +210,6 @@ export default function AccountList({
                     <div className="text-subtle" style={{ maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={account.note ?? ''}>
                       {account.note || (account.statusCode ? `HTTP ${account.statusCode}` : '—')}
                     </div>
-                  </td>
-                  <td style={{ paddingRight: '24px' }}>
-                    <button className="btn btn-ghost btn-icon-only" disabled>
-                      <MoreVertical size={16} />
-                    </button>
                   </td>
                 </motion.tr>
               ))}

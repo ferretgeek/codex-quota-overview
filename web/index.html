@@ -1,9 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hans">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#123f52" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="alternate icon" href="./favicon.ico" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
+    <script>
+      try {
+        const saved = JSON.parse(localStorage.getItem('codex-overview-ui-settings') || '{}');
+        if (['ocean', 'dark', 'monochrome', 'rose', 'lavender', 'matcha'].includes(saved.theme)) {
+          document.documentElement.dataset.theme = saved.theme;
+        }
+      } catch (_) {}
+    </script>
     <title>Codex 额度总览</title>
   </head>
   <body>

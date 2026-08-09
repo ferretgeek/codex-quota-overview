@@ -1,10 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3B82F6"/>
-      <stop offset="100%" style="stop-color:#8B5CF6"/>
-    </linearGradient>
-  </defs>
-  <rect width="32" height="32" rx="8" fill="url(#g)"/>
-  <text x="16" y="23" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="20" fill="#fff">C</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Codex 额度总览">
+  <rect width="64" height="64" rx="15" fill="#163746"/>
+  <path d="M14 42a20 20 0 0 1 36 0" fill="none" stroke="#edf6f5" stroke-width="7" stroke-linecap="round"/>
+  <path d="M17 40a17 17 0 0 1 30-10" fill="none" stroke="#42a595" stroke-width="7" stroke-linecap="round"/>
+  <path d="m32 38 10-13" stroke="#e5ad55" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="32" cy="38" r="5" fill="#edf6f5"/>
 </svg>

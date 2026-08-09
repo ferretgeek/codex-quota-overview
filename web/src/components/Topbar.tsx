@@ -45,8 +45,15 @@ export default function Topbar({
         setShowThemeMenu(false);
       }
     }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setShowThemeMenu(false);
+    }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   const healthLabel = health?.ok ? '服务正常' : '服务异常';
@@ -87,6 +94,8 @@ export default function Topbar({
               color: showThemeMenu ? 'var(--text-primary)' : 'var(--text-secondary)',
             }}
             aria-label="选择主题"
+            aria-haspopup="menu"
+            aria-expanded={showThemeMenu}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Palette size={20} />
@@ -98,6 +107,7 @@ export default function Topbar({
             {showThemeMenu ? (
               <motion.div
                 className="absolute card"
+                role="menu"
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -106,18 +116,21 @@ export default function Topbar({
               >
                 <div className="text-micro" style={{ padding: '4px 8px', marginBottom: '8px', opacity: 0.7 }}>选择主题</div>
                 {THEMES.map((theme) => (
-                  <div
+                  <button
+                    type="button"
                     key={theme.id}
                     className={`theme-menu-item ${currentTheme === theme.id ? 'active' : ''}`}
                     onClick={() => {
                       onThemeChange(theme.id);
                       setShowThemeMenu(false);
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', fontSize: '13px', cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: currentTheme === theme.id ? 'var(--accent-base)' : 'var(--text-primary)', backgroundColor: currentTheme === theme.id ? 'var(--bg-hover)' : 'transparent', fontWeight: currentTheme === theme.id ? 600 : 500, transition: 'all 0.2s' }}
+                    role="menuitemradio"
+                    aria-checked={currentTheme === theme.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', border: 0, textAlign: 'left', fontFamily: 'inherit', padding: '10px 14px', fontSize: '13px', cursor: 'pointer', borderRadius: 'var(--radius-sm)', color: currentTheme === theme.id ? 'var(--accent-base)' : 'var(--text-primary)', backgroundColor: currentTheme === theme.id ? 'var(--bg-hover)' : 'transparent', fontWeight: currentTheme === theme.id ? 600 : 500, transition: 'all 0.2s' }}
                   >
                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: theme.color, border: '1px solid var(--border-strong)', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)' }} />
                     <span>{theme.name}</span>
-                  </div>
+                  </button>
                 ))}
               </motion.div>
             ) : null}

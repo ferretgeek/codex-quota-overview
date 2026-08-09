@@ -111,12 +111,21 @@
 }
 
 .checkbox-wrapper {
+    border: 0;
+    padding: 4px;
+    background: transparent;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-tertiary);
     transition: color var(--transition-fast);
+}
+
+.checkbox-wrapper:focus-visible {
+    outline: 2px solid var(--accent-base);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 .checkbox-wrapper:hover {

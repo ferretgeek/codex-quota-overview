@@ -52,6 +52,10 @@ A local Windows quota dashboard for bulk-importing auth `JSON` files, querying l
 3. Open `http://127.0.0.1:8787`
 4. Pick folders in the UI and click scan
 
+The default scan root is the ignored app-local `workspace/` directory, so sibling folders beside a clone or installation are never enumerated implicitly. Put controlled account folders there or use the page importer; pass `-workspace-root <PATH>` explicitly only for another reviewed root.
+
+The service accepts loopback listen addresses only and does not provide a public authentication layer. On a Linux server, keep it on `127.0.0.1` and connect through an SSH tunnel; do not expose it on `0.0.0.0`. See [Operations](./docs/OPERATIONS.md) for upgrade, backup, restore, health-check, and removal procedures.
+
 ### Option 2: Development mode
 
 Backend:
@@ -123,4 +127,5 @@ npm run build
 - This repository does not include any real credentials, imported pools, scan results, or runtime logs
 - Do not commit real auth files or runtime output directories
 - Packaged runtime builds should be published through GitHub Releases
+- Report vulnerabilities privately as described in the [Security Policy](./SECURITY.md)
 - Read [Support](./SUPPORT.md) before opening an issue and [Contributing](./CONTRIBUTING.md) before submitting a change

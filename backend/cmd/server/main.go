@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ func main() {
 		log.Fatalf("resolve working directory failed: %v", err)
 	}
 	appDir := resolveAppDir(workingDir)
-	workspaceRoot := filepath.Dir(appDir)
+	workspaceRoot := filepath.Join(appDir, "workspace")
 	staticDir := filepath.Join(appDir, "web", "dist")
 
 	addrFlag := flag.String("addr", "127.0.0.1:8787", "http listen address")
@@ -30,9 +31,17 @@ func main() {
 	cacheTTLFlag := flag.Duration("cache-ttl", 20*time.Second, "snapshot cache ttl")
 	flag.Parse()
 
+	resolvedWorkspace := strings.TrimSpace(*workspaceFlag)
+	if resolvedWorkspace == "" {
+		resolvedWorkspace = workspaceRoot
+	}
+	if err = os.MkdirAll(resolvedWorkspace, 0o700); err != nil {
+		log.Fatalf("create workspace root failed: %v", err)
+	}
+
 	server := app.NewServer(app.ServerConfig{
 		AppRoot:       appDir,
-		WorkspaceRoot: strings.TrimSpace(*workspaceFlag),
+		WorkspaceRoot: resolvedWorkspace,
 		StaticDir:     strings.TrimSpace(*staticFlag),
 		CacheTTL:      *cacheTTLFlag,
 		AppName:       "Codex 额度总览",
@@ -43,15 +52,20 @@ func main() {
 	if address == "" {
 		address = "127.0.0.1:8787"
 	}
+	if !isLoopbackListenAddress(address) {
+		log.Fatalf("refusing non-loopback listen address %q: this credential dashboard has no remote authentication layer; use an SSH tunnel", address)
+	}
 
 	httpServer := &http.Server{
 		Addr:              address,
 		Handler:           server.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	url := fmt.Sprintf("http://%s", address)
-	log.Printf("%s 启动中，逻辑 CPU=%d，工作目录=%s", server.Config().AppName, runtime.NumCPU(), server.Config().WorkspaceRoot)
+	log.Printf("%s 启动中，逻辑 CPU=%d，工作目录=%s", server.Config().AppName, runtime.NumCPU(), app.DisplayPath(server.Config().WorkspaceRoot))
 	log.Printf("打开地址：%s", url)
 
 	if *openBrowserFlag {
@@ -64,6 +78,19 @@ func main() {
 	if err = httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("server exited: %v", err)
 	}
+}
+
+func isLoopbackListenAddress(address string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(address))
+	if err != nil {
+		return false
+	}
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func resolveAppDir(workingDir string) string {

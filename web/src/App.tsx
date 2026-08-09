@@ -47,6 +47,7 @@ const SETTINGS_KEY = 'codex-overview-ui-settings';
 const HISTORY_KEY = 'codex-overview-scan-history';
 const AUTOSCAN_PAUSED_KEY = 'codex-overview-autoscan-paused';
 const LAST_SNAPSHOT_KEY = 'codex-overview-last-snapshot';
+const VALID_THEMES = new Set<ThemeType>(['ocean', 'dark', 'monochrome', 'rose', 'lavender', 'matcha']);
 
 function defaultSettings(): AppSettings {
   return {
@@ -65,7 +66,9 @@ function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaultSettings();
-    return { ...defaultSettings(), ...(JSON.parse(raw) as Partial<AppSettings>), autoRefreshEnabled: false };
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const theme = parsed.theme && VALID_THEMES.has(parsed.theme) ? parsed.theme : 'ocean';
+    return { ...defaultSettings(), ...parsed, theme, autoRefreshEnabled: false };
   } catch {
     return defaultSettings();
   }
@@ -100,17 +103,12 @@ function loadLastSnapshot(): ScanSnapshot | null {
   }
 }
 
-function isAbsoluteDirectory(value: string): boolean {
-	const trimmed = value.trim();
-	return /^[a-zA-Z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\') || trimmed.startsWith('/');
-}
-
 function resolveDirectoryCandidate(meta: MetaResponse | null, preferred: string): string {
 	const trimmed = preferred.trim();
 	if (!meta) return trimmed;
 	if (!trimmed) return meta.defaultDirectory || '';
-	if (isAbsoluteDirectory(trimmed)) return trimmed;
-	if (meta.directories.some((item) => item.name === trimmed)) return trimmed;
+	const matched = meta.directories.find((item) => item.name === trimmed || item.path === trimmed);
+	if (matched) return matched.name;
 	return meta.defaultDirectory || '';
 }
 
@@ -143,7 +141,7 @@ function App() {
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    document.body.setAttribute('data-theme', settings.theme);
+    document.documentElement.setAttribute('data-theme', settings.theme);
   }, [settings.theme]);
 
   useEffect(() => {

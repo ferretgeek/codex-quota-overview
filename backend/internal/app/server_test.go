@@ -108,6 +108,24 @@ func TestPersistedResultsRejectTraversalIdentifiers(t *testing.T) {
 	}
 }
 
+func TestMetaReturnsEmptyDirectoryArray(t *testing.T) {
+	t.Parallel()
+	server := NewServer(ServerConfig{AppRoot: t.TempDir(), WorkspaceRoot: t.TempDir()})
+	req := httptest.NewRequest(http.MethodGet, "/api/meta", nil)
+	resp := httptest.NewRecorder()
+	server.handleMeta(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.Code)
+	}
+	var meta MetaResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &meta); err != nil {
+		t.Fatalf("unmarshal meta failed: %v", err)
+	}
+	if meta.Directories == nil || len(meta.Directories) != 0 {
+		t.Fatalf("empty workspace must serialize as []: %s", resp.Body.String())
+	}
+}
+
 func TestResolveImportRelativePathRejectsTraversal(t *testing.T) {
 	t.Parallel()
 	for _, value := range []string{"../outside.json", `..\\outside.json`, "folder/../../outside.json", ""} {
@@ -117,6 +135,35 @@ func TestResolveImportRelativePathRejectsTraversal(t *testing.T) {
 	}
 	if got, err := resolveImportRelativePath("group/account.json"); err != nil || got != "group/account.json" {
 		t.Fatalf("expected safe relative path, got %q, %v", got, err)
+	}
+}
+
+func TestSecurityHeadersRejectCrossOriginRequests(t *testing.T) {
+	t.Parallel()
+	server := NewServer(ServerConfig{AppRoot: t.TempDir(), WorkspaceRoot: t.TempDir()})
+
+	blocked := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	blocked.Host = "127.0.0.1:8787"
+	blocked.Header.Set("Origin", "https://example.com")
+	blockedResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(blockedResponse, blocked)
+	if blockedResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected cross-origin request to be rejected, got %d", blockedResponse.Code)
+	}
+
+	allowed := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	allowed.Host = "127.0.0.1:8787"
+	allowed.Header.Set("Origin", "http://localhost:5173")
+	allowedResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(allowedResponse, allowed)
+	if allowedResponse.Code != http.StatusOK {
+		t.Fatalf("expected loopback origin to be accepted, got %d", allowedResponse.Code)
+	}
+	if allowedResponse.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("expected security headers")
+	}
+	if allowedResponse.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("wildcard CORS must not be enabled")
 	}
 }
 
