@@ -95,6 +95,31 @@ func TestPersistSnapshotAndAccountsPage(t *testing.T) {
 	}
 }
 
+func TestPersistedResultsRejectTraversalIdentifiers(t *testing.T) {
+	t.Parallel()
+	server := NewServer(ServerConfig{AppRoot: t.TempDir(), WorkspaceRoot: t.TempDir()})
+	for _, resultID := range []string{"../outside", `..\\outside`, "result-1-deadbeef/../../outside", ""} {
+		if _, err := server.loadPersistedSnapshot(resultID); err == nil {
+			t.Fatalf("loadPersistedSnapshot(%q) should reject an invalid identifier", resultID)
+		}
+		if _, err := server.loadPersistedAccounts(resultID); err == nil {
+			t.Fatalf("loadPersistedAccounts(%q) should reject an invalid identifier", resultID)
+		}
+	}
+}
+
+func TestResolveImportRelativePathRejectsTraversal(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"../outside.json", `..\\outside.json`, "folder/../../outside.json", ""} {
+		if _, err := resolveImportRelativePath(value); err == nil {
+			t.Fatalf("resolveImportRelativePath(%q) should reject traversal", value)
+		}
+	}
+	if got, err := resolveImportRelativePath("group/account.json"); err != nil || got != "group/account.json" {
+		t.Fatalf("expected safe relative path, got %q, %v", got, err)
+	}
+}
+
 func TestLoadMergeBaseSnapshotFallsBackToPersistedResult(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

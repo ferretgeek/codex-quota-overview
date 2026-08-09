@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -31,6 +33,8 @@ const (
 	previewAccountLimit      = 6
 	maxAccountsPageSize      = 500
 )
+
+var resultIDPattern = regexp.MustCompile(`^result-[0-9]{1,24}-[a-f0-9]{8}$`)
 
 type cacheEntry struct {
 	fullValue float64
@@ -270,9 +274,16 @@ func resultAccountsPath(root, resultID string) string {
 	return filepath.Join(root, resultID, "accounts.ndjson")
 }
 
+func validateResultID(resultID string) error {
+	if !resultIDPattern.MatchString(resultID) {
+		return fmt.Errorf("invalid result id")
+	}
+	return nil
+}
+
 func buildResultID(snapshot ScanSnapshot) string {
 	seed := fmt.Sprintf("%s|%s|%d", snapshot.DirectoryPath, snapshot.ScannedAt, len(snapshot.Accounts))
-	hash := sha1.Sum([]byte(seed))
+	hash := sha256.Sum256([]byte(seed))
 	return fmt.Sprintf("result-%d-%s", time.Now().UnixNano(), hex.EncodeToString(hash[:4]))
 }
 
@@ -307,10 +318,10 @@ func (s *Server) persistSnapshot(snapshot ScanSnapshot) (ScanSnapshot, error) {
 	resultID := buildResultID(snapshot)
 	root := s.resultsRoot()
 	dir := filepath.Join(root, resultID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return ScanSnapshot{}, err
 	}
-	accountsFile, err := os.Create(resultAccountsPath(root, resultID))
+	accountsFile, err := os.OpenFile(resultAccountsPath(root, resultID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return ScanSnapshot{}, err
 	}
@@ -334,13 +345,16 @@ func (s *Server) persistSnapshot(snapshot ScanSnapshot) (ScanSnapshot, error) {
 	if err != nil {
 		return ScanSnapshot{}, err
 	}
-	if err = os.WriteFile(resultMetaPath(root, resultID), metaBytes, 0o644); err != nil {
+	if err = os.WriteFile(resultMetaPath(root, resultID), metaBytes, 0o600); err != nil {
 		return ScanSnapshot{}, err
 	}
 	return clientSnapshot, nil
 }
 
 func (s *Server) loadPersistedSnapshot(resultID string) (ScanSnapshot, error) {
+	if err := validateResultID(resultID); err != nil {
+		return ScanSnapshot{}, err
+	}
 	metaPath := resultMetaPath(s.resultsRoot(), resultID)
 	data, err := os.ReadFile(metaPath)
 	if err != nil {
@@ -354,6 +368,9 @@ func (s *Server) loadPersistedSnapshot(resultID string) (ScanSnapshot, error) {
 }
 
 func (s *Server) loadPersistedAccounts(resultID string) ([]AccountRecord, error) {
+	if err := validateResultID(resultID); err != nil {
+		return nil, err
+	}
 	file, err := os.Open(resultAccountsPath(s.resultsRoot(), resultID))
 	if err != nil {
 		return nil, err
@@ -607,9 +624,19 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	importRoot := filepath.Join(s.config.AppRoot, "imports")
 	targetDir := filepath.Join(importRoot, folderName)
+	if err := os.MkdirAll(importRoot, 0o700); err != nil {
+		s.writeError(w, http.StatusInternalServerError, "创建导入根目录失败")
+		return
+	}
+	imports, err := os.OpenRoot(importRoot)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "打开导入根目录失败")
+		return
+	}
+	defer imports.Close()
 	existingCount := 0
 	if !appendMode {
-		if err := os.RemoveAll(targetDir); err != nil {
+		if err := imports.RemoveAll(folderName); err != nil {
 			s.writeError(w, http.StatusInternalServerError, fmt.Sprintf("清理旧导入目录失败: %v", err))
 			return
 		}
@@ -617,10 +644,16 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 	} else {
 		existingCount = s.getOrCountImportedDirectoryCount(targetDir)
 	}
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+	if err := imports.MkdirAll(folderName, 0o700); err != nil {
 		s.writeError(w, http.StatusInternalServerError, fmt.Sprintf("创建导入目录失败: %v", err))
 		return
 	}
+	targetRoot, err := imports.OpenRoot(folderName)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "打开导入目录失败")
+		return
+	}
+	defer targetRoot.Close()
 	count := 0
 	failed := 0
 	for index, fileHeader := range files {
@@ -632,14 +665,14 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 		if relPath == "" || !strings.HasSuffix(strings.ToLower(relPath), ".json") {
 			continue
 		}
-		destination, err := resolveImportDestination(targetDir, relPath)
+		destination, err := resolveImportRelativePath(relPath)
 		if err != nil {
 			failed++
 			continue
 		}
-		_, statErr := os.Stat(destination)
+		_, statErr := targetRoot.Stat(destination)
 		isNewFile := statErr != nil
-		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		if err := targetRoot.MkdirAll(path.Dir(destination), 0o700); err != nil {
 			failed++
 			continue
 		}
@@ -658,7 +691,7 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 			failed++
 			continue
 		}
-		if err := os.WriteFile(destination, data, 0o644); err != nil {
+		if err := targetRoot.WriteFile(destination, data, 0o600); err != nil {
 			failed++
 			continue
 		}
@@ -668,7 +701,7 @@ func (s *Server) handleImportFolder(w http.ResponseWriter, r *http.Request) {
 	}
 	if count == 0 {
 		if !appendMode {
-			_ = os.RemoveAll(targetDir)
+			_ = imports.RemoveAll(folderName)
 		}
 		s.writeError(w, http.StatusBadRequest, "导入失败：未发现有效 JSON 文件")
 		return
@@ -698,24 +731,36 @@ func (s *Server) handleDeleteDirectory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	importRoot := filepath.Join(s.config.AppRoot, "imports")
-	targetDir := filepath.Join(importRoot, directory)
-	cleanRoot := filepath.Clean(importRoot)
-	cleanTarget := filepath.Clean(targetDir)
-	if !strings.HasPrefix(cleanTarget, cleanRoot) {
+	entries, err := os.ReadDir(importRoot)
+	if err != nil {
+		s.writeError(w, http.StatusNotFound, "directory not found")
+		return
+	}
+	targetName := ""
+	for _, entry := range entries {
+		if entry.IsDir() && strings.EqualFold(entry.Name(), directory) {
+			targetName = entry.Name()
+			break
+		}
+	}
+	if targetName == "" {
 		s.writeError(w, http.StatusForbidden, "only imported directories can be deleted")
 		return
 	}
-	if _, err := os.Stat(cleanTarget); err != nil {
-		s.writeError(w, http.StatusNotFound, fmt.Sprintf("directory not found: %s", directory))
+	imports, err := os.OpenRoot(importRoot)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "open import root failed")
 		return
 	}
-	if err := os.RemoveAll(cleanTarget); err != nil {
+	defer imports.Close()
+	if err := imports.RemoveAll(targetName); err != nil {
 		s.writeError(w, http.StatusInternalServerError, fmt.Sprintf("delete directory failed: %v", err))
 		return
 	}
+	cleanTarget := filepath.Join(importRoot, targetName)
 	s.invalidateDirectoryCache(cleanTarget)
 	s.removeImportedDirectoryCount(cleanTarget)
-	s.writeJSON(w, http.StatusOK, DeleteDirectoryResponse{Deleted: directory})
+	s.writeJSON(w, http.StatusOK, DeleteDirectoryResponse{Deleted: targetName})
 }
 
 func (s *Server) handleScanJob(w http.ResponseWriter, r *http.Request) {
@@ -996,17 +1041,30 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		s.writeStaticFallback(w)
 		return
 	}
-	filePath := filepath.Join(staticDir, filepath.Clean(strings.TrimPrefix(r.URL.Path, "/")))
-	if r.URL.Path == "/" {
-		filePath = filepath.Join(staticDir, "index.html")
-	}
-	if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
-		http.ServeFile(w, r, filePath)
+	staticRoot, err := os.OpenRoot(staticDir)
+	if err != nil {
+		s.writeStaticFallback(w)
 		return
 	}
-	indexPath := filepath.Join(staticDir, "index.html")
-	if _, err := os.Stat(indexPath); err == nil {
-		http.ServeFile(w, r, indexPath)
+	defer staticRoot.Close()
+	requested := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if requested == "." || requested == "" {
+		requested = "index.html"
+	}
+	serve := func(name string) bool {
+		file, openErr := staticRoot.Open(name)
+		if openErr != nil {
+			return false
+		}
+		defer file.Close()
+		info, statErr := file.Stat()
+		if statErr != nil || info.IsDir() {
+			return false
+		}
+		http.ServeContent(w, r, info.Name(), info.ModTime(), file)
+		return true
+	}
+	if serve(requested) || serve("index.html") {
 		return
 	}
 	s.writeStaticFallback(w)
@@ -1192,7 +1250,7 @@ func (s *Server) resolveDirectory(requested string) (DirectoryInfo, error) {
 	directories := s.listDirectories()
 	if strings.TrimSpace(requested) == "" {
 		if len(directories) == 0 {
-			return DirectoryInfo{}, fmt.Errorf("workspace root 下未发现可扫描的认证目录，请手动输入目录路径")
+			return DirectoryInfo{}, fmt.Errorf("workspace root 下未发现可扫描的认证目录，请先导入 JSON 目录")
 		}
 		return directories[0], nil
 	}
@@ -1202,22 +1260,7 @@ func (s *Server) resolveDirectory(requested string) (DirectoryInfo, error) {
 			return directory, nil
 		}
 	}
-	if info, err := os.Stat(requested); err == nil && info.IsDir() {
-		count := countJSONFilesRecursive(requested)
-		if count == 0 {
-			return DirectoryInfo{}, fmt.Errorf("directory has no json files: %s", requested)
-		}
-		return DirectoryInfo{Name: filepath.Base(requested), Path: requested, JSONCount: count}, nil
-	}
-	candidate := filepath.Join(s.config.WorkspaceRoot, requested)
-	if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-		count := countJSONFilesRecursive(candidate)
-		if count == 0 {
-			return DirectoryInfo{}, fmt.Errorf("directory has no json files: %s", candidate)
-		}
-		return DirectoryInfo{Name: filepath.Base(candidate), Path: candidate, JSONCount: count}, nil
-	}
-	return DirectoryInfo{}, fmt.Errorf("directory not found: %s", requested)
+	return DirectoryInfo{}, fmt.Errorf("directory is not in the discovered directory list")
 }
 
 func (s *Server) listDirectories() []DirectoryInfo {
@@ -1367,32 +1410,31 @@ func normalizeImportedRelativePath(folderName, path string) string {
 	return strings.Join(segments, "/")
 }
 
-func resolveImportDestination(root, relPath string) (string, error) {
+func resolveImportRelativePath(relPath string) (string, error) {
 	relPath = sanitizeRelativePath(relPath)
 	if relPath == "" {
 		return "", fmt.Errorf("relative path is empty")
 	}
-	destination := filepath.Clean(filepath.Join(root, filepath.FromSlash(relPath)))
-	cleanRoot := filepath.Clean(root)
-	if destination != cleanRoot && !strings.HasPrefix(destination, cleanRoot+string(os.PathSeparator)) {
+	destination := path.Clean(strings.ReplaceAll(relPath, "\\", "/"))
+	if destination == "." || destination == ".." || strings.HasPrefix(destination, "../") || path.IsAbs(destination) {
 		return "", fmt.Errorf("destination escaped import root")
 	}
 	if len(destination) <= 240 {
 		return destination, nil
 	}
-	ext := filepath.Ext(destination)
-	base := strings.TrimSuffix(filepath.Base(destination), ext)
+	ext := path.Ext(destination)
+	base := strings.TrimSuffix(path.Base(destination), ext)
 	if base == "" {
 		base = "imported"
 	}
-	hash := sha1.Sum([]byte(relPath))
+	hash := sha256.Sum256([]byte(relPath))
 	hashText := hex.EncodeToString(hash[:6])
 	if len(base) > 64 {
 		base = base[:64]
 	}
 	shortName := fmt.Sprintf("%s_%s%s", base, hashText, ext)
-	destination = filepath.Join(filepath.Dir(destination), shortName)
-	if destination != cleanRoot && !strings.HasPrefix(destination, cleanRoot+string(os.PathSeparator)) {
+	destination = path.Join(path.Dir(destination), shortName)
+	if destination == ".." || strings.HasPrefix(destination, "../") || path.IsAbs(destination) {
 		return "", fmt.Errorf("shortened destination escaped import root")
 	}
 	return destination, nil

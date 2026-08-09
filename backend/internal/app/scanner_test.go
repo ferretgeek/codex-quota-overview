@@ -63,6 +63,23 @@ func TestScanDirectoryUsesRelativePathForNestedDuplicateFiles(t *testing.T) {
 	}
 }
 
+func TestScanSelectedFilesDoesNotEscapeOrFallBackToFullScan(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTestAuthFile(t, filepath.Join(root, "inside.json"), authFile{Type: "codex", Email: "inside@example.test"})
+	snapshot, err := ScanSelectedFiles(context.Background(), scanOptions{
+		DirectoryPath: root,
+		DirectoryName: "selected",
+		FullValueUSD:  7.5,
+	}, []string{"../outside.json"})
+	if err != nil {
+		t.Fatalf("ScanSelectedFiles failed: %v", err)
+	}
+	if snapshot.Summary.TotalAccounts != 0 || len(snapshot.Accounts) != 0 {
+		t.Fatalf("invalid selection must not scan unrelated files: %+v", snapshot)
+	}
+}
+
 func TestScanDirectoryLargeSyntheticDataset(t *testing.T) {
 	t.Parallel()
 

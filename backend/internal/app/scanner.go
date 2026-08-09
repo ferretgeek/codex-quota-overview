@@ -23,20 +23,20 @@ import (
 )
 
 const (
-	defaultCodexUsageURL = "https://chatgpt.com/backend-api/wham/usage"
-	defaultCodexUA       = "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal"
-	defaultRetryAttempts = 3
-	defaultRetryBackoff  = 250 * time.Millisecond
-	maxErrorBodyPreview  = 240
+	defaultCodexUsageURL     = "https://chatgpt.com/backend-api/wham/usage"
+	defaultCodexUA           = "codex_cli_rs/0.76.0 (Debian 13.0.0; x86_64) WindowsTerminal"
+	defaultRetryAttempts     = 3
+	defaultRetryBackoff      = 250 * time.Millisecond
+	maxErrorBodyPreview      = 240
 	defaultUnknownCPUWorkers = 20
 	workersPerDetectedCPU    = 20
 )
 
 type scanFile struct {
-	absPath   string
-	relPath   string
-	baseName  string
-	sortKey   string
+	absPath  string
+	relPath  string
+	baseName string
+	sortKey  string
 }
 
 func normalizeSelectedID(value string) string {
@@ -110,8 +110,7 @@ func ScanSelectedFiles(ctx context.Context, opts scanOptions, relativePaths []st
 	if strings.TrimSpace(opts.DirectoryPath) == "" {
 		return ScanSnapshot{}, fmt.Errorf("directory path is empty")
 	}
-	files := make([]scanFile, 0, len(relativePaths))
-	seen := make(map[string]struct{}, len(relativePaths))
+	selected := make(map[string]struct{}, len(relativePaths))
 	for _, item := range relativePaths {
 		raw := strings.TrimSpace(strings.ReplaceAll(item, "\\", "/"))
 		raw = strings.TrimPrefix(raw, "./")
@@ -121,16 +120,14 @@ func ScanSelectedFiles(ctx context.Context, opts scanOptions, relativePaths []st
 		if normalized == "" {
 			continue
 		}
-		if _, ok := seen[normalized]; ok {
-			continue
-		}
-		candidatePath := filepath.Join(opts.DirectoryPath, filepath.FromSlash(raw))
-		info, err := os.Stat(candidatePath)
-		if err != nil || info == nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
-			continue
-		}
-		seen[normalized] = struct{}{}
-		files = append(files, scanFile{absPath: candidatePath, relPath: filepath.ToSlash(raw), baseName: info.Name(), sortKey: strings.ToLower(raw)})
+		selected[normalized] = struct{}{}
+	}
+	if len(selected) == 0 {
+		return ScanSnapshot{}, nil
+	}
+	files, err := collectScanFiles(opts.DirectoryPath, selected)
+	if err != nil {
+		return ScanSnapshot{}, fmt.Errorf("read directory failed: %w", err)
 	}
 	if len(files) == 0 {
 		return ScanSnapshot{}, nil
@@ -172,32 +169,6 @@ func scanPreparedFiles(ctx context.Context, files []scanFile, opts scanOptions) 
 }
 
 func collectScanFiles(root string, selectedIDs map[string]struct{}) ([]scanFile, error) {
-	if len(selectedIDs) > 0 {
-		direct := make([]scanFile, 0, len(selectedIDs))
-		seen := make(map[string]struct{}, len(selectedIDs))
-		for selectedID := range selectedIDs {
-			candidatePath := filepath.Join(root, filepath.FromSlash(selectedID))
-			info, err := os.Stat(candidatePath)
-			if err != nil || info == nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".json") {
-				continue
-			}
-			rel, relErr := filepath.Rel(root, candidatePath)
-			if relErr != nil {
-				rel = info.Name()
-			}
-			rel = filepath.ToSlash(rel)
-			normalizedRel := normalizeSelectedID(rel)
-			if _, ok := seen[normalizedRel]; ok {
-				continue
-			}
-			seen[normalizedRel] = struct{}{}
-			direct = append(direct, scanFile{absPath: candidatePath, relPath: rel, baseName: info.Name(), sortKey: strings.ToLower(rel)})
-		}
-		if len(direct) > 0 {
-			return direct, nil
-		}
-	}
-
 	files := make([]scanFile, 0, 128)
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
