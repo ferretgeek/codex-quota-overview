@@ -337,13 +337,13 @@ function App() {
     if (!directory) return;
     const url = api.exportCsvUrl({
       directory,
+      resultId: snapshot?.resultId,
       fullValueUSD: settings.fullValueUSD,
       autoConcurrency: settings.autoConcurrency,
       concurrency: settings.autoConcurrency ? 0 : settings.manualConcurrency,
-      force: false,
     });
     window.open(url, '_blank');
-  }, [meta, settings.autoConcurrency, settings.directory, settings.fullValueUSD, settings.manualConcurrency]);
+  }, [meta, settings.autoConcurrency, settings.directory, settings.fullValueUSD, settings.manualConcurrency, snapshot?.resultId]);
 
   const selectedDirectoryInfo = useMemo<DirectoryInfo | null>(() => {
     return meta?.directories.find((item) => item.name === settings.directory) ?? null;

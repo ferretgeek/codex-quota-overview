@@ -1023,16 +1023,26 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
+	if query.Has("force") {
+		s.writeError(w, http.StatusBadRequest, "CSV export never starts a scan; run a scan first")
+		return
+	}
 	req := ScanRequest{
 		Directory:       strings.TrimSpace(query.Get("directory")),
+		ResultID:        strings.TrimSpace(query.Get("resultId")),
 		FullValueUSD:    parseFloatOrDefault(query.Get("fullValueUSD"), s.config.DefaultPrice),
 		AutoConcurrency: query.Get("autoConcurrency") != "false",
 		Concurrency:     parseIntOrDefault(query.Get("concurrency"), 0),
-		Force:           query.Get("force") == "true",
 	}
-	snapshot, err := s.loadSnapshot(r.Context(), req, false)
+	directory, err := s.resolveDirectory(req.Directory)
 	if err != nil {
 		s.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cacheKey := directory.Path + "|" + fmt.Sprintf("%.2f", req.FullValueUSD)
+	snapshot, ok := s.loadMergeBaseSnapshot(cacheKey, req.ResultID)
+	if !ok || filepath.Clean(snapshot.DirectoryPath) != filepath.Clean(directory.Path) {
+		s.writeError(w, http.StatusConflict, "no completed scan is available for export")
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -1042,20 +1052,29 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 	_ = writer.Write([]string{"id", "file", "email", "plan", "quotaPercent", "usdValue", "resetDate", "status", "statusCode", "lastRefresh", "expiredAt", "note"})
 	for _, account := range snapshot.Accounts {
 		_ = writer.Write([]string{
-			account.ID,
-			account.File,
-			account.Email,
-			account.Plan,
+			safeCSVCell(account.ID),
+			safeCSVCell(account.File),
+			safeCSVCell(account.Email),
+			safeCSVCell(account.Plan),
 			fmt.Sprintf("%.2f", account.QuotaPercent),
 			fmt.Sprintf("%.2f", account.USDValue),
-			account.ResetDate,
+			safeCSVCell(account.ResetDate),
 			string(account.Status),
 			fmt.Sprintf("%d", account.StatusCode),
-			account.LastRefresh,
-			account.ExpiredAt,
-			account.Note,
+			safeCSVCell(account.LastRefresh),
+			safeCSVCell(account.ExpiredAt),
+			safeCSVCell(account.Note),
 		})
 	}
+}
+
+func safeCSVCell(value string) string {
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if strings.HasPrefix(trimmed, "=") || strings.HasPrefix(trimmed, "+") ||
+		strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "@") {
+		return "'" + value
+	}
+	return value
 }
 
 func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
@@ -1480,6 +1499,17 @@ func loopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func requestHostIsLoopback(hostPort string) bool {
+	hostPort = strings.TrimSpace(hostPort)
+	if host, _, err := net.SplitHostPort(hostPort); err == nil {
+		return loopbackHost(host)
+	}
+	if strings.Contains(hostPort, ":") {
+		return loopbackHost(strings.Trim(hostPort, "[]"))
+	}
+	return loopbackHost(hostPort)
+}
+
 func requestOriginAllowed(r *http.Request) bool {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if origin == "" {
@@ -1506,6 +1536,10 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
+		if !requestHostIsLoopback(r.Host) {
+			s.writeError(w, http.StatusBadRequest, "Host must be a literal loopback address")
+			return
+		}
 		if !requestOriginAllowed(r) {
 			s.writeError(w, http.StatusForbidden, "cross-origin requests are not allowed")
 			return

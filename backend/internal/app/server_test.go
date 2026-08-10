@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -164,6 +165,48 @@ func TestSecurityHeadersRejectCrossOriginRequests(t *testing.T) {
 	}
 	if allowedResponse.Header().Get("Access-Control-Allow-Origin") != "" {
 		t.Fatal("wildcard CORS must not be enabled")
+	}
+
+	rebound := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	rebound.Host = "attacker.example:8787"
+	reboundResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(reboundResponse, rebound)
+	if reboundResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected non-loopback Host to be rejected, got %d", reboundResponse.Code)
+	}
+}
+
+func TestExportNeverStartsScanAndCSVCellsAreNeutralized(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	directory := filepath.Join(workspace, "demo")
+	if err := os.MkdirAll(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "account.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := NewServer(ServerConfig{AppRoot: root, WorkspaceRoot: workspace})
+	request := httptest.NewRequest(http.MethodGet, "/api/export.csv?directory=demo&force=true", nil)
+	request.Host = "127.0.0.1:8787"
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("force export must be rejected, got %d", response.Code)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "/api/export.csv?directory=demo", nil)
+	request.Host = "127.0.0.1:8787"
+	response = httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("uncached export must not scan, got %d", response.Code)
+	}
+	for _, value := range []string{"=1+1", " +cmd", "\t@SUM(A1:A2)", "-2+3"} {
+		if got := safeCSVCell(value); !strings.HasPrefix(got, "'") {
+			t.Fatalf("formula-like value %q was not neutralized: %q", value, got)
+		}
 	}
 }
 

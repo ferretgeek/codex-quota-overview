@@ -102,7 +102,7 @@ npm run dev
 - `GET /api/accounts?resultId=...`
 - `POST /api/clear-imported-files`
 - `POST /api/clear-stats`
-- `GET /api/export.csv`
+- `GET /api/export.csv`（只导出已完成结果，不触发扫描；不接受 `force`）
 
 ## 开发校验
 

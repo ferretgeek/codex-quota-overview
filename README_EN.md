@@ -102,7 +102,7 @@ npm run dev
 - `GET /api/accounts?resultId=...`
 - `POST /api/clear-imported-files`
 - `POST /api/clear-stats`
-- `GET /api/export.csv`
+- `GET /api/export.csv` (exports completed results only; never accepts `force` or starts a scan)
 
 ## Validation
 

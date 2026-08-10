@@ -208,10 +208,10 @@ export const api = {
   exportCsvUrl(payload: ScanRequest): string {
     const params = new URLSearchParams({
       directory: payload.directory,
+      resultId: payload.resultId || '',
       fullValueUSD: String(payload.fullValueUSD),
       autoConcurrency: String(payload.autoConcurrency),
       concurrency: String(payload.concurrency || 0),
-      force: String(Boolean(payload.force)),
     });
     return `${API_BASE}/api/export.csv?${params.toString()}`;
   },
